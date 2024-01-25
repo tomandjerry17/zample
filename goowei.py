@@ -1,157 +1,153 @@
 import tkinter as tk
-from tkinter import messagebox
 import random
 import time
-import sqlite3
 
 class MorseGameGUI:
-    # Define Morse code patterns and their corresponding letters
-    morse_codes = {".-": 'a', "-...": 'b', "-.-.": 'c', "-..": 'd', ".": 'e',
-                   "..-.": 'f', "--.": 'g', "....": 'h',
-                   "..": 'i', ".---": 'j', "-.-": 'k', ".-..": 'l', "--": 'm',
-                   "-.": 'n', "---": 'o', ".--.": 'p',
-                   "--.-": 'q', ".-.": 'r', "...": 's', "-": 't', "..-": 'u',
-                   "...-": 'v', ".--": 'w', "-..-": 'x',
-                   "-.--": 'y', "--..": 'z'}
+    def __init__(self, master):
+        self.master = master
+        self.master.title("MorseZone Game")
+        self.current_game_window = None
+        self.hint_window = None
+        self.timed_countdown_window = None
+        self.score = 0
 
-    def __init__(self, root):
-        self.root = root
-        self.root.title("MorseZone Game")
+        self.label = tk.Label(master, text="Welcome to the MorseZone!", font=("Helvetica", 16))
+        self.label.grid(row=0, column=0, pady=20)
 
-        self.label = tk.Label(root, text="Welcome to the MorseZone!")
-        self.label.pack()
+        self.normal_button = tk.Button(master, text="Normal Mode", command=self.start_normal_game, font=("Helvetica", 14))
+        self.normal_button.grid(row=1, column=0, pady=10)
 
-        self.button_frame = tk.Frame(root)
-        self.button_frame.pack()
+        self.timed_button = tk.Button(master, text="Timed Mode", command=self.start_timed_game, font=("Helvetica", 14))
+        self.timed_button.grid(row=2, column=0, pady=10)
 
-        self.normal_button = tk.Button(self.button_frame, text="Normal Mode", command=self.start_normal_game)
-        self.normal_button.grid(row=0, column=0, padx=10, pady=10)
+        self.hint_button = tk.Button(master, text="Hint", command=self.display_hint, font=("Helvetica", 14))
+        self.hint_button.grid(row=3, column=0, pady=10)
 
-        self.timed_button = tk.Button(self.button_frame, text="Timed Mode", command=self.start_timed_game)
-        self.timed_button.grid(row=0, column=1, padx=10, pady=10)
-
-        self.high_scores_button = tk.Button(self.button_frame, text="High Scores", command=self.display_high_scores)
-        self.high_scores_button.grid(row=1, column=0, columnspan=2, pady=10)
-
-        self.quit_button = tk.Button(self.button_frame, text="Quit", command=self.root.destroy)
-        self.quit_button.grid(row=2, column=0, columnspan=2, pady=10)
+        self.quit_button = tk.Button(master, text="Quit", command=self.master.destroy, font=("Helvetica", 14))
+        self.quit_button.grid(row=4, column=0, pady=10)
 
     def start_normal_game(self):
-        self.start_game('Normal')
+        if self.current_game_window:
+            self.current_game_window.destroy()
+
+        self.current_game_window = tk.Toplevel(self.master)
+        self.score = 0
+        self.normal_game()
 
     def start_timed_game(self):
-        self.start_game('Timed')
+        if self.current_game_window:
+            self.current_game_window.destroy()
 
-    def start_game(self, game_mode):
-        self.root.withdraw()  # Hide the main window
+        self.current_game_window = tk.Toplevel(self.master)
+        self.timed_countdown_window = tk.Toplevel(self.master)
+        self.score = 0
+        self.timed_game()
 
-        game_window = tk.Toplevel(self.root)
-        game_window.title(f"{game_mode} Mode")
+    def normal_game(self):
+        morse_codes_copy = list(morse_codes.items())
+        random.shuffle(morse_codes_copy)
 
-        if game_mode == 'Normal':
-            self.normal_game(game_window)
-        elif game_mode == 'Timed':
-            self.timed_game(game_window)
+        for random_morse, correct_answer in morse_codes_copy[:10]:
+            self.display_question(random_morse)
 
-    def normal_game(self, game_window):
-        # Initialize the score
-        score = 0
+            user_input = tk.Entry(self.current_game_window, font=("Helvetica", 14))
+            user_input.grid(row=2, column=0, pady=10)
 
-        for _ in range(10):
-            # Randomly select a Morse code pattern
-            random_morse = random.choice(list(self.morse_codes.keys()))
+            submit_button = tk.Button(self.current_game_window, text="Submit", command=lambda r=random_morse, c=correct_answer: self.check_answer(user_input, r, c), font=("Helvetica", 14))
+            submit_button.grid(row=3, column=0, pady=10)
 
-            # Display Morse code to the user
-            morse_label = tk.Label(game_window, text=f"Guess the letter for the following Morse code:\n{random_morse}")
-            morse_label.pack()
+            self.current_game_window.wait_window(self.current_game_window)
 
-            # Get user input
-            user_input = tk.Entry(game_window)
-            user_input.pack()
+        self.display_score()
+        self.current_game_window.destroy()
 
-            # Submit button
-            submit_button = tk.Button(game_window, text="Submit", command=lambda: self.check_answer(game_window, user_input, random_morse, score))
-            submit_button.pack()
+    def timed_game(self):
+        morse_codes_copy = list(morse_codes.items())
+        random.shuffle(morse_codes_copy)
 
-            game_window.wait_window()
-
-        # Display final score
-        messagebox.showinfo("Game Over", f"Your final score is: {score}")
-        store_score("Player", score, 'Normal')
-
-        self.root.deiconify()  # Show the main window
-
-    def timed_game(self, game_window):
-        # Initialize Score
-        score = 0
-
-        # Setting the time limit
         game_duration = 30
-
-        # Formula
         end_time = time.time() + game_duration
 
-        while time.time() < end_time:
-            # Randomly select a Morse code pattern
-            random_morse = random.choice(list(self.morse_codes.keys()))
+        remaining_time_label = tk.Label(self.timed_countdown_window, font=("Helvetica", 14))
+        remaining_time_label.grid(row=0, column=0, pady=20)
 
-            # Display remaining time and Morse code
-            remaining_time_label = tk.Label(game_window, text=f"Remaining time: {int(end_time - time.time())} seconds")
-            remaining_time_label.pack()
+        for random_morse, correct_answer in morse_codes_copy:
+            while time.time() < end_time:
+                remaining_time = int(end_time - time.time())
 
-            morse_label = tk.Label(game_window, text=f"Guess the letter for the following Morse code:\n{random_morse}")
-            morse_label.pack()
+                self.display_question(random_morse)
 
-            # Get user input
-            user_input = tk.Entry(game_window)
-            user_input.pack()
+                remaining_time_label.config(text=f"Remaining time: {remaining_time} seconds")
 
-            # Submit button
-            submit_button = tk.Button(game_window, text="Submit", command=lambda: self.check_answer(game_window, user_input, random_morse, score))
-            submit_button.pack()
+                user_input = tk.Entry(self.current_game_window, font=("Helvetica", 14))
+                user_input.grid(row=2, column=0, pady=10)
 
-            game_window.wait_window()
+                submit_button = tk.Button(self.current_game_window, text="Submit", command=lambda r=random_morse, c=correct_answer: self.check_answer(user_input, r, c), font=("Helvetica", 14))
+                submit_button.grid(row=3, column=0, pady=10)
 
-        # Display final score
-        messagebox.showinfo("Game Over", f"Time's up! Your total score is {score}")
-        store_score("Player", score, 'Timed')
+                self.current_game_window.wait_window(self.current_game_window)
 
-        self.root.deiconify()  # Show the main window
+        self.display_score()
+        self.timed_countdown_window.destroy()
+        self.current_game_window.destroy()
 
-    def check_answer(self, game_window, user_input, random_morse, score):
+    def display_question(self, random_morse):
+        morse_label = tk.Label(self.current_game_window, text=f"Guess the letter for the following Morse code:\n{random_morse}", font=("Helvetica", 14))
+        morse_label.grid(row=1, column=0, pady=20)
+
+    def check_answer(self, user_input, random_morse, correct_answer):
         user_answer = user_input.get().lower()
-        correct_answer = self.morse_codes[random_morse]
 
         if user_answer == correct_answer:
-            messagebox.showinfo("Correct", "Nice! You guessed it correctly!")
-            score += 1
+            self.display_feedback("Correct! Nice guess!", True)
+            self.score += 1
         else:
-            messagebox.showinfo("Wrong", f"Wrong. The correct answer is '{correct_answer}'.")
+            self.display_feedback(f"Wrong. The correct answer is '{correct_answer}'.", False)
 
-        game_window.destroy()  # Close the game window
+        user_input.delete(0, tk.END)
+        self.current_game_window.update_idletasks()
 
-    def display_high_scores(self):
-        conn = sqlite3.connect('morse_game.db')
-        cursor = conn.cursor()
+    def display_feedback(self, feedback, is_correct):
+        feedback_label = tk.Label(self.current_game_window, text=feedback, font=("Helvetica", 14), fg="green" if is_correct else "red")
+        feedback_label.grid(row=4, column=0, pady=20)
 
-        # Fetch and display high scores
-        cursor.execute('''
-            SELECT player_name, score, game_mode, timestamp
-            FROM scores
-            ORDER BY score DESC
-            LIMIT 10
-        ''')
+        continue_button = tk.Button(self.current_game_window, text="Continue", command=lambda: self.destroy_feedback(feedback_label), font=("Helvetica", 14))
+        continue_button.grid(row=5, column=0, pady=10)
 
-        high_scores = cursor.fetchall()
+    def destroy_feedback(self, feedback_label):
+        feedback_label.destroy()
+        self.current_game_window.update_idletasks()
+        self.current_game_window.destroy()
 
-        high_scores_str = "\n".join([f"{name}: {score} points ({mode} mode) - {timestamp}" for name, score, mode, timestamp in high_scores])
+    def display_score(self):
+        score_label = tk.Label(self.current_game_window, text=f"Your final score is: {self.score}", font=("Helvetica", 16))
+        score_label.grid(row=1, column=0, pady=20)
 
-        messagebox.showinfo("High Scores", high_scores_str)
+    def display_hint(self):
+        if self.hint_window:
+            self.hint_window.destroy()
 
-        conn.close()
+        self.hint_window = tk.Toplevel(self.master)
+        hint_label = tk.Label(self.hint_window, text=self.generate_hint_text(), font=("Helvetica", 14))
+        hint_label.pack(pady=20)
 
+        back_button = tk.Button(self.hint_window, text="Back to Main Menu", command=self.hint_window.destroy, font=("Helvetica", 14))
+        back_button.pack(pady=10)
+
+    def generate_hint_text(self):
+        hint_text = "Morse Code Hints:\n"
+        for code, letter in morse_codes.items():
+            hint_text += f"{letter.upper()} = {code}\n"
+        return hint_text
 
 if __name__ == "__main__":
+    morse_codes = {".-": 'a', "-...": 'b', "-.-.": 'c', "-..": 'd', ".": 'e',
+                   "..-.": 'f', "--.": 'g', "....": 'h', "..": 'i', ".---": 'j',
+                   "-.-": 'k', ".-..": 'l', "--": 'm', "-.": 'n', "---": 'o',
+                   ".--.": 'p', "--.-": 'q', ".-.": 'r', "...": 's', "-": 't',
+                   "..-": 'u', "...-": 'v', ".--": 'w', "-..-": 'x', "-.--": 'y',
+                   "--..": 'z'}
+
     root = tk.Tk()
     app = MorseGameGUI(root)
     root.mainloop()
